@@ -52,6 +52,7 @@ avgData2009_2018 <- avgData %>%
   dplyr::filter(Year < 2019)
 # Training set time series:
 avgIndex2009_2018 = ts(avgData2009_2018$mean_PerSK,start=c(2009,1), frequency = 162)
+# Test
 ```
 #### Time Plot 
 
