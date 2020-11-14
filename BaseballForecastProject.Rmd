@@ -52,7 +52,6 @@ avgData2009_2018 <- avgData %>%
   dplyr::filter(Year < 2019)
 # Training set time series:
 avgIndex2009_2018 = ts(avgData2009_2018$mean_PerSK,start=c(2009,1), frequency = 162)
-# Test
 ```
 #### Time Plot 
 
@@ -64,6 +63,7 @@ autoplot(avgIndex2009_2018) + xlab("Year Game Index") +
 
 # There appears to be quite a bit of random fluctuation within our time series.
 # There may be a slight trend upwards over our training set, but seems very minimal.
+# No obvious seasonality or cycles based on visual assessment.
 # Our average percentages vary between 55% and 75%.
 
 # Time plot of testing set:
@@ -80,7 +80,7 @@ autoplot(avgIndex2014) + xlab("Year Game Index") +
   theme_classic()
 ```
 
-#### Check Distribution 
+#### Check Distribution Aspects
 
 ```{r}
 # Examining Basic Statistics of our training set and testing set:
@@ -111,94 +111,203 @@ plot(fitdist(as.numeric(avgIndex2019), "norm"))
 # Again the testing set does not, but this is not as problematic as we will be building the models using only the training set.
 
 # Overall we conclude that our training set is normally distributed.
+
+
+# Checking mean of our testing set to see whether it is different from zero:
+t.test(avgIndex2009_2018)
+
+# Resulting p-value is very small and therefore we can conclude that our mean value is different from zero.
 ```
+
+
+### Forecasting Models:
 
 #### Naive 
 
 ```{r}
+# Uses most recent point as data for forecast values:
 averageModelNaive <- naive(avgIndex2009_2018, h = 162)
-accuracy(averageModelNaive, avgIndex2019)
+plot(averageModelNaive)
+
+# Assessing the accuracy of this model versus the actual data:
+naive_acc <- accuracy(averageModelNaive, avgIndex2019)
+naive_acc
+
+# Creating list of error values for assessing all models:
+naive_errors_test <- naive_acc[2,]
+
+# Plotting portion of data for easier interpretation:
+plot(avgIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "Naive Forecasting on Segment of Data")
+lines(naive(avgIndex2009_2018, h=162)$mean, col="red", lwd=2)
+lines(avgIndex2019, col="blue")
 ```
 
 #### SES
 
 ```{r}
+# Using weighted averages of past values to create a flat forecast:
 averageModelSES <- ses(avgIndex2009_2018, h = 162)
-accuracy(averageModelSES, avgIndex2019)
+plot(averageModelSES)
+
+# Assessing the accuracy of this model versus the actual data:
+ses_acc <- accuracy(averageModelSES, avgIndex2019)
+ses_acc
+
+# Creating list of error values for assessing all models:
+ses_errors_test <- ses_acc[2,]
+
+# Plotting a portion of the data for easier interpretation:
+plot(avgIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "SES Forecasting on Segment of Data")
+lines(ses(avgIndex2009_2018, h=162)$mean, col="green", lwd=2)
+lines(avgIndex2019, col="blue")
 ```
 
 #### ETS 
 
 ```{r}
-averageETS <- ets(avgData2009_2018$mean_PerSK)
+# Using ETS model:
+averageETS <- ets(avgIndex2009_2018)
 summary(averageETS)
-ETSForcast <- forecast(averageETS, h = 162)
-accuracy(ETSForcast, avgData2019$mean_PerSK)
+plot(averageETS)
+
+# Output from model is ETS(A,N,N), this has additive error, no trend and no seasonality.
+# The ETS plot seems to indicate that there may be a slight trend, but this was not strong enough that the model felt the need to account for the trend.
+
+# Assessing the accuracy of the ETS Model:
+ETSForecast <- forecast(averageETS, h = 162)
+plot(ETSForecast)
+ETS_acc <- accuracy(ETSForecast, avgData2019$mean_PerSK)
+ETS_acc
+
+# Creating list of error values for assessing all models:
+ets_errors_test <- ETS_acc[2,]
+
+# Plotting a portion of the data for easier interpretation:
+plot(avgIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "ETS(A,N,N) Forecasting on Segment of Data")
+lines(ETSForecast$mean, col="cyan", lwd=2)
+lines(avgIndex2019, col="blue")
 ```
+#### Pre-Processing for ARIMA:
+#### Box-Cox Transformation
+
+```{r}
+# We will assess the Box Cox lambda to see if our data needs to be transformed:
+BoxCox.lambda(avgIndex2009_2018)
+
+# This is indicating a lambda greater than 1 and therefore we will not transform our data.
+```
+
 
 #### ACF
 
 ```{r}
-adf.test(avgIndex2009_2018)
+# Examine the data visually to see if there are concerns around our data not being stationary:
 ggAcf(avgIndex2009_2018) + ggtitle("ACF Plot for 2009-2018 Seasons")
 ggPacf(avgIndex2009_2018)+ ggtitle("PACF Plot for 2009-2018 Seasons")
-tsdisplay(diff(avgIndex2009_2018))
+
+# We will conduct a Dickey-Fuller test to confirm the visual assessment:
+adf.test(avgIndex2009_2018)
+
+# The Dickey-Fuller test outputs a p-value smaller 0.01, which would indicate our data is stationary.
+# However, we will test using ndiffs and nsdiffs to see if there might be an indication of adjustments that should be made for differencing:
+
 ndiffs(avgIndex2009_2018)
+# Suggests that 1 difference should be done to make data more stationary.
 nsdiffs(avgIndex2009_2018)
+# Suggests that no seasonal differencing is needed.
+
+# Examine visual details once one differencing is done:
+tsdisplay(diff(avgIndex2009_2018))
+# Data now looks much more stationary, although there ADF Test did not indicate a strong need to difference our data.
 ```
 
-#### Box Test
+#### Ljung-Box Test:
 
 ```{r}
-Box.test(avgIndex2009_2018,lag=10,type='Ljung') 
+log(length(avgIndex2009_2018)) # Based on our data, we should really only check up to around 7.4
+
+# Lag 1
+Box.test(avgIndex2009_2018,lag=1,type='Ljung')
+# Lag 2
+Box.test(avgIndex2009_2018,lag=2,type='Ljung')
+# Lag 3
+Box.test(avgIndex2009_2018,lag=3,type='Ljung') 
+# Lag 5
 Box.test(avgIndex2009_2018,lag=5,type='Ljung')
-Box.test(avgIndex2009_2018,lag=20,type='Ljung')
+# Lag 7
 Box.test(avgIndex2009_2018,lag=7,type='Ljung')
-Box.test(avgIndex2009_2018,lag=162,type='Ljung')
+# Lag 9
+Box.test(avgIndex2009_2018,lag=9,type='Ljung')
+
+# Based on these results it looks like we have serial correlation occurring in our data as the p-values are all very small
 ```
 
-#### T Test
+#### ARIMA 
 
 ```{r}
-t.test(avgIndex2009_2018)
+# We will now examine an ARIMA forecasting model for our data set using auto.arima.
+# Based on the above pre-processing information and testing it looks like an ARIMA model will include a differencing of 1.
+# The Ljung-Test has also shown that we may have serial correlation occurring and this may also impact the ARIMA model that is chosen. Examining the ACF and PACF plots it is likely that there is an autoregression component that may be output by the model.
+# As indicated in our class notes, the ARIMA model includes three components:
+# p = order of the autoregression component
+# d = degree of differencing involved
+# q = order of moving average component
+
+ARIMA_model1 = auto.arima(avgIndex2009_2018)
+# Output is a ARIMA(5,1,1) model
+summary(ARIMA_model1)
+tsdisplay(ARIMA_model1$residuals) # Residuals look pretty close to white noise
+Box.test(ARIMA_model1$residuals, lag = 7, type = 'Ljung') # Residuals are white noise
+
+# Assessing the accuracy of the ETS Model:
+ARIMAForecast <- forecast(ARIMA_model1, h = 162)
+plot(ARIMAForecast)
+ARIMA_acc <- accuracy(ARIMAForecast, avgData2019$mean_PerSK)
+ARIMA_acc
+
+# Creating list of error values for assessing all models:
+arima_errors_test <- ARIMA_acc[2,]
+
+# Plotting a portion of the data for easier interpretation:
+plot(avgIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "ARIMA(5,1,1) Forecasting on Segment of Data")
+lines(ARIMAForecast$mean, col="orange", lwd=2)
+lines(avgIndex2019, col="blue")
 ```
-
-#### Arima 
+#### Examining Errors and AICc where appropriate:
 
 ```{r}
-auto.arima(avgIndex2009_2018)
+print("Naive Forecast Errors")
+naive_errors_test
+print("SES Forecast Errors")
+ses_errors_test
+print("ETS Forecast Errors")
+ets_errors_test
+print("ARIMA Forecast Errors")
+arima_errors_test
 
-### Arima 0, 1, 1
-avgArima0_1_1 <-  Arima(avgIndex2009_2018, order= c(0,1,1))
-summary(avgArima0_1_1)
+# Based on analyzing the errors from the four methods used, SES performs the best for our data.
 
-### Arima 0, 1, 2
-avgArima0_1_2 <-  Arima(avgIndex2009_2018, order= c(0,1,2))
-summary(avgArima0_1_2)
+print("ETS AICc")
+averageETS$aicc
+print("ARIMA AICc")
+ARIMA_model1$aicc
 
-### Arima 0, 1, 3
-avgArima0_1_3 <-  Arima(avgIndex2009_2018, order= c(0,1,3))
-summary(avgArima0_1_3)
-
-### Arima 0, 0, 2
-avgArima0_0_2 <-  Arima(avgIndex2009_2018, order= c(0,0,2))
-summary(avgArima0_0_2)
-
-### Arima 0, 2, 3
-avgArima0_2_3 <-  Arima(avgIndex2009_2018, order= c(0,2,3))
-summary(avgArima0_2_3)
-
-### Arima 1,1,1 
-avgArima1_1_1 <-  Arima(avgIndex2009_2018, order= c(1,1,1))
-summary(avgArima1_1_1)
-
-### Arima 1,1,2
-avgArima1_1_2 <-  Arima(avgIndex2009_2018, order= c(1,1,2))
-summary(avgArima1_1_2)
-
-### Arima 1,2,1
-avgArima1_2_1 <-  Arima(avgIndex2009_2018, order= c(1,2,1))
-summary(avgArima1_2_1)
 ```
 
 ### Boston 
