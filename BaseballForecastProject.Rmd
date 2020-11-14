@@ -16,54 +16,100 @@ library(ggplot2)
 library(fBasics)
 library(fpp)
 library(forecast)
+
+# Importing data that was scraped from baseball-reference.com:
 data <- read.csv("Data/BOS_NYY_2009_2019.csv", stringsAsFactors = FALSE)
+
+# Creating an index that is a combination of the season (Year) and the game number (Rk):
 data$Game_Year <- paste(data$Rk, data$Year, sep = "_")
-data$yearGame <- as.integer(paste(as.character(data$Year), ifelse(data$Rk < 10, paste("00", as.character(data$Rk), sep = ""),
-       ifelse(data$Rk >= 10 & data$Rk < 100, paste("0", as.character(data$Rk), sep = ""),as.character(data$Rk))), sep = ""))
+data$yearGame <- as.integer(paste(as.character(data$Year), 
+                                  ifelse(data$Rk < 10, 
+                                         paste("00", as.character(data$Rk), sep = ""),
+                                         ifelse(data$Rk >= 10 & data$Rk < 100, 
+                                                paste("0", as.character(data$Rk), sep = ""),
+                                                as.character(data$Rk))), sep = ""))
 ```
 
 ### Average 
 
 ```{r}
+# Computing the average percentage of strikes thrown by game by assessing both NY and Bos:
 avgData <- data %>% 
   group_by(yearGame, Year) %>% 
   summarise(mean_PerSK = mean(PerSK))
+
+# Creating a time series from our data
+# Also, separating data into testing set (2019 season) and training set (2009-2018 seasons)
+
+# Testing set:
 avgData2019 <- avgData %>% 
   dplyr::filter(Year == 2019)
+# Testing set time series:
 avgIndex2019 = ts(avgData2019$mean_PerSK,start=c(2019,1), frequency = 162)
+
+# Training set:
 avgData2009_2018 <- avgData %>% 
   dplyr::filter(Year < 2019)
+# Training set time series:
 avgIndex2009_2018 = ts(avgData2009_2018$mean_PerSK,start=c(2009,1), frequency = 162)
 ```
-
-#### Check Distribution 
-
-```{r}
-descdist(as.numeric(avgIndex2009_2018), discrete = FALSE)
-descdist(as.numeric(avgIndex2019), discrete = FALSE)
-fBasics::normalTest(avgIndex2009_2018, method = 'jb')
-basicStats(avgIndex2019)
-basicStats(avgIndex2009_2018)
-fBasics::normalTest(avgIndex2019, method = "jb")
-plot(fitdist(as.numeric(avgIndex2009_2018), "norm"))
-plot(fitdist(as.numeric(avgIndex2019), "norm"))
-```
-
 #### Time Plot 
 
 ```{r}
+# Time plot of training set:
 autoplot(avgIndex2009_2018) + xlab("Year Game Index") +
   ylab("Percent of Pitches That Are Strike") + ggtitle("Boston Red Sox and New York Yankees Percenatge of Pitches That Are Strikes 2009-2018") +
   theme_classic()
+
+# There appears to be quite a bit of random fluctuation within our time series.
+# There may be a slight trend upwards over our training set, but seems very minimal.
+# Our average percentages vary between 55% and 75%.
+
+# Time plot of testing set:
 autoplot(avgIndex2019) + xlab("Year Game Index") +
   ylab("Percent of Pitches That Are Strike") + ggtitle("Boston Red Sox and New York Yankees Percenatge of Pitches That Are Strikes 2019") +
   theme_classic()
+
+# Time plot of training set, season 2014 for closer view of individual year:
 avgData2014 <- avgData %>% 
   dplyr::filter(Year == 2014)
 avgIndex2014 = ts(avgData2014$mean_PerSK,start=c(2014,1), frequency = 162)
 autoplot(avgIndex2014) + xlab("Year Game Index") +
   ylab("Percent of Pitches That Are Strike") + ggtitle("Boston Red Sox and New York Yankees Percenatge of Pitches That Are Strikes 2014") +
   theme_classic()
+```
+
+#### Check Distribution 
+
+```{r}
+# Examining Basic Statistics of our training set and testing set:
+basicStats(avgIndex2019)
+basicStats(avgIndex2009_2018)
+
+# Examining the nature of our distribution and checking for normality:
+
+# Training Set:
+descdist(as.numeric(avgIndex2009_2018), discrete = FALSE)
+# Testing Set:
+descdist(as.numeric(avgIndex2019), discrete = FALSE)
+
+# Computing normal test using Jarque-Bera test, here we are examining if p-value is greater than alpha.
+# We will compare the p-value against alpha values of 0.01 and 0.05.
+# Training set:
+fBasics::normalTest(avgIndex2009_2018, method = 'jb')
+# Testing set:
+fBasics::normalTest(avgIndex2019, method = "jb")
+
+# Conclusion: our training set passes the J-B Test at an alpha of 0.01, but our testing set does not.
+
+# Displaying normal plots for our data:
+plot(fitdist(as.numeric(avgIndex2009_2018), "norm"))
+plot(fitdist(as.numeric(avgIndex2019), "norm"))
+
+# Conclusion: our training set appears to align with a normal distribution when examining normality plots. 
+# Again the testing set does not, but this is not as problematic as we will be building the models using only the training set.
+
+# Overall we conclude that our training set is normally distributed.
 ```
 
 #### Naive 
@@ -93,8 +139,8 @@ accuracy(ETSForcast, avgData2019$mean_PerSK)
 
 ```{r}
 adf.test(avgIndex2009_2018)
-ggAcf(avgIndex2009_2018)
-Pacf(avgIndex2009_2018)
+ggAcf(avgIndex2009_2018) + ggtitle("ACF Plot for 2009-2018 Seasons")
+ggPacf(avgIndex2009_2018)+ ggtitle("PACF Plot for 2009-2018 Seasons")
 tsdisplay(diff(avgIndex2009_2018))
 ndiffs(avgIndex2009_2018)
 nsdiffs(avgIndex2009_2018)
