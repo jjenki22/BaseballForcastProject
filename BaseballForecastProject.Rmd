@@ -32,46 +32,66 @@ data$yearGame <- as.integer(paste(as.character(data$Year),
 
 ### Average 
 
+Computing the average percentage of strikes thrown by game by assessing both NY and Bos:
 ```{r}
-# Computing the average percentage of strikes thrown by game by assessing both NY and Bos:
 avgData <- data %>% 
   group_by(yearGame, Year) %>% 
   summarise(mean_PerSK = mean(PerSK))
-
-# Creating a time series from our data
-# Also, separating data into testing set (2019 season) and training set (2009-2018 seasons)
-
-# Testing set:
-avgData2019 <- avgData %>% 
-  dplyr::filter(Year == 2019)
-# Testing set time series:
-avgIndex2019 = ts(avgData2019$mean_PerSK,start=c(2019,1), frequency = 162)
-
-# Training set:
-avgData2009_2018 <- avgData %>% 
-  dplyr::filter(Year < 2019)
-# Training set time series:
-avgIndex2009_2018 = ts(avgData2009_2018$mean_PerSK,start=c(2009,1), frequency = 162)
 ```
-#### Time Plot 
+Creating a time series from our data
+Also, separating data into testing set (2019 season) and training set (2009-2018 seasons)
+
+Testing set:
 
 ```{r}
-# Time plot of training set:
+avgData2019 <- avgData %>% 
+  dplyr::filter(Year == 2019)
+```
+
+Testing set time series:
+
+```{r}
+avgIndex2019 = ts(avgData2019$mean_PerSK,start=c(2019,1), frequency = 162)
+```
+
+Training set:
+```{r}
+avgData2009_2018 <- avgData %>% 
+  dplyr::filter(Year < 2019)
+```
+
+Training set time series:
+
+```{r}
+avgIndex2009_2018 = ts(avgData2009_2018$mean_PerSK,start=c(2009,1), frequency = 162)
+```
+
+#### Time Plot 
+
+Time plot of training set:
+
+```{r}
 autoplot(avgIndex2009_2018) + xlab("Year Game Index") +
   ylab("Percent of Pitches That Are Strike") + ggtitle("Boston Red Sox and New York Yankees Percenatge of Pitches That Are Strikes 2009-2018") +
   theme_classic()
+```
 
-# There appears to be quite a bit of random fluctuation within our time series.
-# There may be a slight trend upwards over our training set, but seems very minimal.
-# No obvious seasonality or cycles based on visual assessment.
-# Our average percentages vary between 55% and 75%.
+There appears to be quite a bit of random fluctuation within our time series.
+There may be a slight trend upwards over our training set, but seems very minimal.
+No obvious seasonality or cycles based on visual assessment.
+Our average percentages vary between 55% and 75%.
 
-# Time plot of testing set:
+Time plot of testing set:
+
+```{r}
 autoplot(avgIndex2019) + xlab("Year Game Index") +
   ylab("Percent of Pitches That Are Strike") + ggtitle("Boston Red Sox and New York Yankees Percenatge of Pitches That Are Strikes 2019") +
   theme_classic()
+```
 
-# Time plot of training set, season 2014 for closer view of individual year:
+Time plot of training set, season 2014 for closer view of individual year:
+
+```{r}
 avgData2014 <- avgData %>% 
   dplyr::filter(Year == 2014)
 avgIndex2014 = ts(avgData2014$mean_PerSK,start=c(2014,1), frequency = 162)
@@ -86,57 +106,76 @@ autoplot(avgIndex2014) + xlab("Year Game Index") +
 # Examining Basic Statistics of our training set and testing set:
 basicStats(avgIndex2019)
 basicStats(avgIndex2009_2018)
-
-# Examining the nature of our distribution and checking for normality:
-
-# Training Set:
-descdist(as.numeric(avgIndex2009_2018), discrete = FALSE)
-# Testing Set:
-descdist(as.numeric(avgIndex2019), discrete = FALSE)
-
-# Computing normal test using Jarque-Bera test, here we are examining if p-value is greater than alpha.
-# We will compare the p-value against alpha values of 0.01 and 0.05.
-# Training set:
-fBasics::normalTest(avgIndex2009_2018, method = 'jb')
-# Testing set:
-fBasics::normalTest(avgIndex2019, method = "jb")
-
-# Conclusion: our training set passes the J-B Test at an alpha of 0.01, but our testing set does not.
-
-# Displaying normal plots for our data:
-plot(fitdist(as.numeric(avgIndex2009_2018), "norm"))
-plot(fitdist(as.numeric(avgIndex2019), "norm"))
-
-# Conclusion: our training set appears to align with a normal distribution when examining normality plots. 
-# Again the testing set does not, but this is not as problematic as we will be building the models using only the training set.
-
-# Overall we conclude that our training set is normally distributed.
-
-
-# Checking mean of our testing set to see whether it is different from zero:
-t.test(avgIndex2009_2018)
-
-# Resulting p-value is very small and therefore we can conclude that our mean value is different from zero.
 ```
 
+Examining the nature of our distribution and checking for normality:
+
+Training Set:
+```{r}
+descdist(as.numeric(avgIndex2009_2018), discrete = FALSE)
+```
+
+Testing Set:
+```{r}
+descdist(as.numeric(avgIndex2019), discrete = FALSE)
+```
+
+Computing normal test using Jarque-Bera test, here we are examining if p-value is greater than alpha.
+We will compare the p-value against alpha values of 0.01 and 0.05.
+Training set:
+
+```{r}
+fBasics::normalTest(avgIndex2009_2018, method = 'jb')
+```
+
+Testing set:
+```{r{}}
+fBasics::normalTest(avgIndex2019, method = "jb")
+```
+
+Conclusion: our training set passes the J-B Test at an alpha of 0.01, but our testing set does not.
+
+Displaying normal plots for our data:
+```{r}
+plot(fitdist(as.numeric(avgIndex2009_2018), "norm"))
+plot(fitdist(as.numeric(avgIndex2019), "norm"))
+```
+
+Conclusion: our training set appears to align with a normal distribution when examining normality plots. 
+Again the testing set does not, but this is not as problematic as we will be building the models using only the training set.
+
+Overall we conclude that our training set is normally distributed.
+
+Checking mean of our testing set to see whether it is different from zero:
+
+```{r}
+t.test(avgIndex2009_2018)
+```
+Resulting p-value is very small and therefore we can conclude that our mean value is different from zero.
 
 ### Forecasting Models:
 
 #### Naive 
 
+Uses most recent point as data for forecast values:
 ```{r}
-# Uses most recent point as data for forecast values:
 averageModelNaive <- naive(avgIndex2009_2018, h = 162)
 plot(averageModelNaive)
+```
 
-# Assessing the accuracy of this model versus the actual data:
+Assessing the accuracy of this model versus the actual data:
+```{r}
 naive_acc <- accuracy(averageModelNaive, avgIndex2019)
 naive_acc
+```
 
-# Creating list of error values for assessing all models:
+Creating list of error values for assessing all models:
+```{r}
 naive_errors_test <- naive_acc[2,]
+```
 
-# Plotting portion of data for easier interpretation:
+Plotting portion of data for easier interpretation:
+```{r}
 plot(avgIndex2009_2018, 
      xlim = c(2018.0, 2020.0),
      xlab = "Season and Game",
@@ -148,19 +187,28 @@ lines(avgIndex2019, col="blue")
 
 #### SES
 
+Using weighted averages of past values to create a flat forecast:
 ```{r}
-# Using weighted averages of past values to create a flat forecast:
 averageModelSES <- ses(avgIndex2009_2018, h = 162)
 plot(averageModelSES)
+```
 
-# Assessing the accuracy of this model versus the actual data:
+Assessing the accuracy of this model versus the actual data:
+
+```{r}
 ses_acc <- accuracy(averageModelSES, avgIndex2019)
 ses_acc
+```
 
-# Creating list of error values for assessing all models:
+Creating list of error values for assessing all models:
+
+```{r}
 ses_errors_test <- ses_acc[2,]
+```
 
 # Plotting a portion of the data for easier interpretation:
+
+```{r}
 plot(avgIndex2009_2018, 
      xlim = c(2018.0, 2020.0),
      xlab = "Season and Game",
@@ -172,25 +220,31 @@ lines(avgIndex2019, col="blue")
 
 #### ETS 
 
+Using ETS model:
 ```{r}
-# Using ETS model:
 averageETS <- ets(avgIndex2009_2018)
 summary(averageETS)
 plot(averageETS)
+```
 
-# Output from model is ETS(A,N,N), this has additive error, no trend and no seasonality.
-# The ETS plot seems to indicate that there may be a slight trend, but this was not strong enough that the model felt the need to account for the trend.
+Output from model is ETS(A,N,N), this has additive error, no trend and no seasonality.
+The ETS plot seems to indicate that there may be a slight trend, but this was not strong enough that the model felt the need to account for the trend.
 
-# Assessing the accuracy of the ETS Model:
+Assessing the accuracy of the ETS Model:
+```{r}
 ETSForecast <- forecast(averageETS, h = 162)
 plot(ETSForecast)
 ETS_acc <- accuracy(ETSForecast, avgData2019$mean_PerSK)
 ETS_acc
+```
 
-# Creating list of error values for assessing all models:
+Creating list of error values for assessing all models:
+```{r}
 ets_errors_test <- ETS_acc[2,]
+```
 
-# Plotting a portion of the data for easier interpretation:
+Plotting a portion of the data for easier interpretation:
+```{r}
 plot(avgIndex2009_2018, 
      xlim = c(2018.0, 2020.0),
      xlab = "Season and Game",
@@ -199,39 +253,50 @@ plot(avgIndex2009_2018,
 lines(ETSForecast$mean, col="cyan", lwd=2)
 lines(avgIndex2019, col="blue")
 ```
+
 #### Pre-Processing for ARIMA:
 #### Box-Cox Transformation
 
+We will assess the Box Cox lambda to see if our data needs to be transformed:
 ```{r}
-# We will assess the Box Cox lambda to see if our data needs to be transformed:
 BoxCox.lambda(avgIndex2009_2018)
-
-# This is indicating a lambda greater than 1 and therefore we will not transform our data.
 ```
 
+This is indicating a lambda greater than 1 and therefore we will not transform our data.
 
 #### ACF
 
+Examine the data visually to see if there are concerns around our data not being stationary:
 ```{r}
-# Examine the data visually to see if there are concerns around our data not being stationary:
 ggAcf(avgIndex2009_2018) + ggtitle("ACF Plot for 2009-2018 Seasons")
 ggPacf(avgIndex2009_2018)+ ggtitle("PACF Plot for 2009-2018 Seasons")
-
-# We will conduct a Dickey-Fuller test to confirm the visual assessment:
-adf.test(avgIndex2009_2018)
-
-# The Dickey-Fuller test outputs a p-value smaller 0.01, which would indicate our data is stationary.
-# However, we will test using ndiffs and nsdiffs to see if there might be an indication of adjustments that should be made for differencing:
-
-ndiffs(avgIndex2009_2018)
-# Suggests that 1 difference should be done to make data more stationary.
-nsdiffs(avgIndex2009_2018)
-# Suggests that no seasonal differencing is needed.
-
-# Examine visual details once one differencing is done:
-tsdisplay(diff(avgIndex2009_2018))
-# Data now looks much more stationary, although there ADF Test did not indicate a strong need to difference our data.
 ```
+
+We will conduct a Dickey-Fuller test to confirm the visual assessment:
+```{r}
+adf.test(avgIndex2009_2018)
+```
+
+The Dickey-Fuller test outputs a p-value smaller 0.01, which would indicate our data is stationary.
+However, we will test using ndiffs and nsdiffs to see if there might be an indication of adjustments that should be made for differencing:
+
+```{r}
+ndiffs(avgIndex2009_2018)
+```
+
+Suggests that 1 difference should be done to make data more stationary.
+```{r}
+nsdiffs(avgIndex2009_2018)
+```
+
+Suggests that no seasonal differencing is needed.
+
+Examine visual details once one differencing is done:
+```{r}
+tsdisplay(diff(avgIndex2009_2018))
+```
+
+Data now looks much more stationary, although there ADF Test did not indicate a strong need to difference our data.
 
 #### Ljung-Box Test:
 
@@ -250,37 +315,46 @@ Box.test(avgIndex2009_2018,lag=5,type='Ljung')
 Box.test(avgIndex2009_2018,lag=7,type='Ljung')
 # Lag 9
 Box.test(avgIndex2009_2018,lag=9,type='Ljung')
-
-# Based on these results it looks like we have serial correlation occurring in our data as the p-values are all very small
 ```
+
+Based on these results it looks like we have serial correlation occurring in our data as the p-values are all very small
 
 #### ARIMA 
 
-```{r}
-# We will now examine an ARIMA forecasting model for our data set using auto.arima.
-# Based on the above pre-processing information and testing it looks like an ARIMA model will include a differencing of 1.
-# The Ljung-Test has also shown that we may have serial correlation occurring and this may also impact the ARIMA model that is chosen. Examining the ACF and PACF plots it is likely that there is an autoregression component that may be output by the model.
-# As indicated in our class notes, the ARIMA model includes three components:
-# p = order of the autoregression component
-# d = degree of differencing involved
-# q = order of moving average component
+We will now examine an ARIMA forecasting model for our data set using auto.arima.
+Based on the above pre-processing information and testing it looks like an ARIMA model will include a differencing of 1.
+The Ljung-Test has also shown that we may have serial correlation occurring and this may also impact the ARIMA model that is chosen. Examining the ACF and PACF plots it is likely that there is an autoregression component that may be output by the model.
+As indicated in our class notes, the ARIMA model includes three components:
+p = order of the autoregression component
+d = degree of differencing involved
+q = order of moving average component
 
+```{r}
 ARIMA_model1 = auto.arima(avgIndex2009_2018)
-# Output is a ARIMA(5,1,1) model
+```
+
+Output is a ARIMA(5,1,1) model
+```{r}
 summary(ARIMA_model1)
 tsdisplay(ARIMA_model1$residuals) # Residuals look pretty close to white noise
 Box.test(ARIMA_model1$residuals, lag = 7, type = 'Ljung') # Residuals are white noise
+```
 
-# Assessing the accuracy of the ETS Model:
+Assessing the accuracy of the model:
+```{r}
 ARIMAForecast <- forecast(ARIMA_model1, h = 162)
 plot(ARIMAForecast)
 ARIMA_acc <- accuracy(ARIMAForecast, avgData2019$mean_PerSK)
 ARIMA_acc
+```
 
-# Creating list of error values for assessing all models:
+Creating list of error values for assessing all models:
+```{r}
 arima_errors_test <- ARIMA_acc[2,]
+```
 
-# Plotting a portion of the data for easier interpretation:
+Plotting a portion of the data for easier interpretation:
+```{r}
 plot(avgIndex2009_2018, 
      xlim = c(2018.0, 2020.0),
      xlab = "Season and Game",
@@ -300,14 +374,15 @@ print("ETS Forecast Errors")
 ets_errors_test
 print("ARIMA Forecast Errors")
 arima_errors_test
+```
 
-# Based on analyzing the errors from the four methods used, SES performs the best for our data.
+Based on analyzing the errors from the four methods used, SES performs the best for our data.
 
+```{r}
 print("ETS AICc")
 averageETS$aicc
 print("ARIMA AICc")
 ARIMA_model1$aicc
-
 ```
 
 ### Boston 
@@ -321,19 +396,7 @@ Bos2009_2018 <- data %>%
 BosIndex2009_2018 = ts(Bos2009_2018$PerSK,start=c(2009,1), frequency = 162)
 ```
 
-#### Check Distribution 
-
-```{r}
-descdist(as.numeric(BosIndex2009_2018), discrete = FALSE)
-descdist(as.numeric(BosIndex2019), discrete = FALSE)
-fBasics::normalTest(BosIndex2009_2018, method = 'jb')
-basicStats(BosIndex2019)
-basicStats(BosIndex2009_2018)
-fBasics::normalTest(BosIndex2019, method = "jb")  
-basicStats(as.numeric(BosIndex2009_2018))
-plot(fitdist(as.numeric(BosIndex2009_2018), "norm"))
-plot(fitdist(as.numeric(BosIndex2019), "norm"))
-```
+Above we created the training and test sets as well as making the data a time series.
 
 #### Time Plot 
 
@@ -352,18 +415,76 @@ autoplot(BosIndex2014) + xlab("Year Game Index") +
   theme_classic()
 ```
 
+#### Check Distribution 
+
+Next, we examined the distribution to check the normality of the data.
+
+Training Set:
+
+```{r}
+descdist(as.numeric(BosIndex2009_2018), discrete = FALSE)
+plot(fitdist(as.numeric(BosIndex2009_2018), "norm"))
+```
+
+Test Set:
+
+```{r}
+descdist(as.numeric(BosIndex2019), discrete = FALSE)
+plot(fitdist(as.numeric(BosIndex2019), "norm"))
+```
+
+Based off these graphs, it appears that both data sets are normally distributed.
+
+Training Set:
+```{r}
+fBasics::normalTest(BosIndex2009_2018, method = 'jb')
+```
+
+Testing Set:
+
+```{r}
+fBasics::normalTest(BosIndex2019, method = "jb")  
+```
+
+The training set passes the J-B Test, however, the testing set does not.
+
+### Forecasting Models:
+
 #### Naive
 
+Uses the most recent data point as a foreast.
 ```{r}
 BosNaive <- naive(BosIndex2009_2018, h = 162)
 accuracy(BosNaive, BosIndex2019)
 ```
 
+```{r}
+plot(BosIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "Naive Forecasting on Segment of Data")
+lines(naive(BosIndex2009_2018, h=162)$mean, col="red", lwd=2)
+lines(BosIndex2019, col="blue")
+```
+
 #### SES
 
+Using weighted averages of past values to crete a flat forecast:
 ```{r}
 BosModelSES <- ses(BosIndex2009_2018, h = 162)
+plot(BosModelSES)
 accuracy(BosModelSES, BosIndex2019)
+```
+
+```{r}
+plot(BosIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "SES Forecasting on Segment of Data")
+lines(ses(BosIndex2009_2018, h=162)$mean, col="green", lwd=2)
+lines(BosIndex2019, col="blue")
 ```
 
 #### ETS
@@ -371,8 +492,25 @@ accuracy(BosModelSES, BosIndex2019)
 ```{r}
 BosETS <- ets(Bos2009_2018$PerSK)
 summary(BosETS)
+plot(BosETS)
+```
+
+The output from the model is an ETS(M,N,N), which has multiplicative errors, no trend, and no seasonality. 
+
+Looking at the accuracy of the ETS Model
+```{r}
 BosETSForcast <- forecast(BosETS, h = 162)
 accuracy(BosETSForcast, Bos2019$PerSK)
+```
+
+```{r}
+plot(BosIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "ETS(M,N,N) Forecasting on Segment of Data")
+lines(BosETSForcast$mean, col="cyan", lwd=2)
+lines(BosIndex2019, col="blue")
 ```
 
 #### ACF
@@ -386,121 +524,31 @@ ndiffs(BosIndex2009_2018)
 nsdiffs(BosIndex2009_2018)
 ```
 
-#### Box Test 
-
-```{r}
-Box.test(BosIndex2009_2018,lag=10,type='Ljung') 
-Box.test(BosIndex2009_2018,lag=5,type='Ljung')
-Box.test(BosIndex2009_2018,lag=20,type='Ljung')
-Box.test(BosIndex2009_2018,lag=7,type='Ljung')
-Box.test(BosIndex2009_2018,lag=162,type='Ljung')
-```
-
-#### T Test
-
-```{r}
-t.test(BosIndex2009_2018)
-```
-
 #### Arima 
 
+Output is a ARIMA(4, 1, 1) with drift model
 ```{r}
-auto.arima(BosIndex2009_2018)
-### Arima 3, 1, 1
-BosArima3_1_1 <-  Arima(BosIndex2009_2018, order= c(3,1,1))
-summary(BosArima3_1_1)
+BosArima <- auto.arima(BosIndex2009_2018)
+summary(BosArima)
+```
 
-### Arima 3, 0, 1
-BosArima3_0_1 <-  Arima(BosIndex2009_2018, order= c(3,0,1))
-summary(BosArima3_0_1)
+Looking at the accuracy
 
-### Arima 3, 1, 0
-BosArima3_1_0 <-  Arima(BosIndex2009_2018, order= c(3,1, 0))
-summary(BosArima3_1_0)
+```{r}
+BosArimaForecast <- forecast(BosArima, h = 162)
+plot(BosArimaForecast)
+accuracy(BosArimaForecast, BosIndex2019)
+```
 
-### Arima 3, 2, 2
-BosArima3_2_2 <-  Arima(BosIndex2009_2018, order= c(3,2,2))
-summary(BosArima3_2_2)
-
-### Arima 3,2,1 
-BosArima3_2_1 <-  Arima(BosIndex2009_2018, order= c(3,2,1))
-summary(BosArima3_2_1)
-
-### Arima 3,1,2 
-BosArima3_1_2 <-  Arima(BosIndex2009_2018, order= c(3,1,2))
-summary(BosArima3_1_2)
-
-### Arima 3, 1, 1
-BosArima3_1_1 <-  Arima(BosIndex2009_2018, order= c(3,1,1))
-summary(BosArima3_1_1)
-
-### Arima 3, 0, 1
-BosArima3_0_1 <-  Arima(BosIndex2009_2018, order= c(3,0,1))
-summary(BosArima3_0_1)
-
-### Arima 3, 1, 0
-BosArima3_1_0 <-  Arima(BosIndex2009_2018, order= c(3,1, 0))
-summary(BosArima3_1_0)
-
-### Arima 3, 2, 2
-BosArima3_2_2 <-  Arima(BosIndex2009_2018, order= c(3,2,2))
-summary(BosArima3_2_2)
-
-### Arima 3,2,1 
-BosArima3_2_1 <-  Arima(BosIndex2009_2018, order= c(3,2,1))
-summary(BosArima3_2_1)
-
-### Arima 3,1,2 
-BosArima3_1_2 <-  Arima(BosIndex2009_2018, order= c(3,1,2))
-summary(BosArima3_1_2)
-
-### Arima 4, 1, 1
-BosArima4_1_1 <-  Arima(BosIndex2009_2018, order= c(4,1,1))
-summary(BosArima4_1_1)
-
-### Arima 4, 0, 1
-BosArima4_0_1 <-  Arima(BosIndex2009_2018, order= c(4,0,1))
-summary(BosArima4_0_1)
-
-### Arima 4, 1, 0
-BosArima4_1_0 <-  Arima(BosIndex2009_2018, order= c(4,1, 0))
-summary(BosArima4_1_0)
-
-### Arima 4, 2, 2
-BosArima4_2_2 <-  Arima(BosIndex2009_2018, order= c(4,2,2))
-summary(BosArima4_2_2)
-
-### Arima 4,2,1 
-BosArima4_2_1 <-  Arima(BosIndex2009_2018, order= c(4,2,1))
-summary(BosArima4_2_1)
-
-### Arima 4,1,2 
-BosArima4_1_2 <-  Arima(BosIndex2009_2018, order= c(4,1,2))
-summary(BosArima4_1_2)
-
-### Arima 5, 1, 1
-BosArima5_1_1 <-  Arima(BosIndex2009_2018, order= c(5,1,1))
-summary(BosArima5_1_1)
-
-### Arima 5, 0, 1
-BosArima5_0_1 <-  Arima(BosIndex2009_2018, order= c(5,0,1))
-summary(BosArima5_0_1)
-
-### Arima 5, 1, 0
-BosArima5_1_0 <-  Arima(BosIndex2009_2018, order= c(5,1, 0))
-summary(BosArima5_1_0)
-
-### Arima 5, 2, 2
-BosArima5_2_2 <-  Arima(BosIndex2009_2018, order= c(5,2,2))
-summary(BosArima5_2_2)
-
-### Arima 5,2,1 
-BosArima5_2_1 <-  Arima(BosIndex2009_2018, order= c(5,2,1))
-summary(BosArima5_2_1)
-
-### Arima 5,1,2 
-BosArima5_1_2 <-  Arima(BosIndex2009_2018, order= c(5,1,2))
-summary(BosArima5_1_2)
+Plotting a portion of the data for easier interpretation:
+```{r}
+plot(BosIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "ARIMA(4,1,1) Forecasting on Segment of Data")
+lines(BosArimaForecast$mean, col="orange", lwd=2)
+lines(BosIndex2019, col="blue")
 ```
 
 ### New York 
@@ -514,19 +562,7 @@ Nyy2009_2018 <- data %>%
 NyyIndex2009_2018 = ts(Nyy2009_2018$PerSK,start=c(2009,1), frequency = 162)
 ```
 
-#### Check Distribution
-
-```{r}
-descdist(as.numeric(NyyIndex2009_2018), discrete = FALSE)
-descdist(as.numeric(NyyIndex2019), discrete = FALSE)
-fBasics::normalTest(NyyIndex2009_2018, method = 'jb')
-basicStats(NyyIndex2019)
-basicStats(NyyIndex2009_2018)
-fBasics::normalTest(NyyIndex2019, method = "jb")  
-basicStats(as.numeric(NyyIndex2009_2018))
-plot(fitdist(as.numeric(NyyIndex2009_2018), "norm"))
-plot(fitdist(as.numeric(NyyIndex2019), "norm"))
-```
+Above we created the training and test sets as well as making the data a time series.
 
 #### Time Plot
 
@@ -545,18 +581,68 @@ autoplot(NyyIndex2014) + xlab("Year Game Index") +
   theme_classic()
 ```
 
+#### Check Distribution
+
+```{r}
+descdist(as.numeric(NyyIndex2009_2018), discrete = FALSE)
+plot(fitdist(as.numeric(NyyIndex2009_2018), "norm"))
+```
+
+```{r}
+descdist(as.numeric(NyyIndex2019), discrete = FALSE)
+plot(fitdist(as.numeric(NyyIndex2019), "norm"))
+```
+
+Based on these graphs it appears that the data is pretty close to a normal distribution. 
+
+Training Set:
+
+```{r}
+fBasics::normalTest(NyyIndex2009_2018, method = 'jb')
+```
+
+Test Set:
+
+```{r}
+fBasics::normalTest(NyyIndex2019, method = "jb")  
+```
+
+The traing set passes the J-B Test but the test set does not.
+
 #### Naive 
 
+Uses the most recent data point as a foreast.
 ```{r}
 NyyNaive <- naive(NyyIndex2009_2018, h = 162)
 accuracy(NyyNaive, NyyIndex2019)
 ```
 
+```{r}
+plot(NyyIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "Naive Forecasting on Segment of Data")
+lines(naive(NyyIndex2009_2018, h=162)$mean, col="red", lwd=2)
+lines(BosIndex2019, col="blue")
+```
+
 #### SES
 
+Uses the weighted averages of past values to create a falt forecast:
 ```{r}
 NyyModelSES <- ses(NyyIndex2009_2018, h = 162)
 accuracy(NyyModelSES, NyyIndex2019)
+```
+
+```{r}
+plot(BosIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "SES Forecasting on Segment of Data")
+lines(ses(BosIndex2009_2018, h=162)$mean, col="green", lwd=2)
+lines(BosIndex2019, col="blue")
 ```
 
 #### ETS 
@@ -564,8 +650,24 @@ accuracy(NyyModelSES, NyyIndex2019)
 ```{r}
 NyyETS <- ets(Nyy2009_2018$PerSK)
 summary(NyyETS)
-NyyETSForcast <- forecast(NyyETS, h = 162)
-accuracy(NyyETSForcast, Nyy2019$PerSK)
+plot(NyyETS)
+```
+
+The output of the model is an ETS(A,N,N) model which is additive errors, no trend, and no seasonality. 
+
+```{r}
+NyyETSForecast <- forecast(NyyETS, h = 162)
+accuracy(NyyETSForecast, Nyy2019$PerSK)
+```
+
+```{r}
+plot(NyyIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "ETS(A,N,N) Forecasting on Segment of Data")
+lines(NyyETSForecast$mean, col="cyan", lwd=2)
+lines(avgIndex2019, col="blue")
 ```
 
 #### ACF
@@ -579,57 +681,29 @@ ndiffs(NyyIndex2009_2018)
 nsdiffs(NyyIndex2009_2018)
 ```
 
-#### Box Test 
-
-```{r}
-Box.test(NyyIndex2009_2018,lag=10,type='Ljung') 
-Box.test(NyyIndex2009_2018,lag=5,type='Ljung')
-Box.test(NyyIndex2009_2018,lag=20,type='Ljung')
-Box.test(NyyIndex2009_2018,lag=7,type='Ljung')
-Box.test(NyyIndex2009_2018,lag=162,type='Ljung')
-```
-
-#### T Test
-
-```{r}
-t.test(NyyIndex2009_2018)
-```
-
 #### Arima 
 
+The output is a ARIMA(0,1,2) model
 ```{r}
-## New York
-auto.arima(NyyIndex2009_2018)
+NyyArima <- auto.arima(NyyIndex2009_2018)
+summary(NyyArima)
+```
 
-### Arima 0, 1, 1
-NyyArima0_1_1 <-  Arima(NyyIndex2009_2018, order= c(0,1,1))
-summary(NyyArima0_1_1)
+Looking at the accuracy:
 
-### Arima 0, 1, 2
-NyyArima0_1_2 <-  Arima(NyyIndex2009_2018, order= c(0,1,2))
-summary(NyyArima0_1_2)
+```{r}
+NyyArimaForecast <- forecast(NyyArima, h = 162)
+plot(NyyArimaForecast)
+accuracy(NyyArimaForecast, NyyIndex2019)
+```
 
-### Arima 0, 1, 3
-NyyArima0_1_3 <-  Arima(NyyIndex2009_2018, order= c(0,1,3))
-summary(NyyArima0_1_3)
-
-### Arima 0, 0, 2
-NyyArima0_0_2 <-  Arima(NyyIndex2009_2018, order= c(0,0,2))
-summary(NyyArima0_0_2)
-
-### Arima 0, 2, 3
-NyyArima0_2_3 <-  Arima(NyyIndex2009_2018, order= c(0,2,3))
-summary(NyyArima0_2_3)
-
-### Arima 1,1,1 
-NyyArima1_1_1 <-  Arima(NyyIndex2009_2018, order= c(1,1,1))
-summary(NyyArima1_1_1)
-
-### Arima 1,1,2
-NyyArima1_1_2 <-  Arima(NyyIndex2009_2018, order= c(1,1,2))
-summary(NyyArima1_1_2)
-
-### Arima 1,2,1
-NyyArima1_2_1 <-  Arima(NyyIndex2009_2018, order= c(1,2,1))
-summary(NyyArima1_2_1)
+Plotting a portion of the data for easier interpretation:
+```{r}
+plot(NyyIndex2009_2018, 
+     xlim = c(2018.0, 2020.0),
+     xlab = "Season and Game",
+     ylab = "Percentage of Strikes Thrown",
+     main = "ARIMA(0,1,2) Forecasting on Segment of Data")
+lines(NyyArimaForecast$mean, col="orange", lwd=2)
+lines(NyyIndex2019, col="blue")
 ```
